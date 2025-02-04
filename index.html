@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Scorched Tanks</title>
+  <title>Scorched Tanks - Multi Opponent (New Enemy Aiming)</title>
   <style>
     body {
       margin: 0;
@@ -29,14 +29,14 @@
       padding: 5px;
       font-size: 16px;
     }
-    /* Гараж – базовое оформление */
+    /* Garage styling */
     #garageMenu div {
       border: 1px solid #fff;
       padding: 10px;
       margin: 10px auto;
       width: 300px;
     }
-    /* Канва для боя */
+    /* Battle canvas */
     #gameCanvas {
       background: #222;
       border: 2px solid #fff;
@@ -46,14 +46,14 @@
   </style>
 </head>
 <body>
-  <!-- Главное меню -->
+  <!-- Main Menu -->
   <div id="mainMenu" class="menu visible">
     <h1>Scorched Tanks</h1>
     <button id="startBtn">Start Game</button>
     <button id="optionsBtn">Options</button>
   </div>
   
-  <!-- Меню настроек -->
+  <!-- Options Menu -->
   <div id="optionsMenu" class="menu">
     <h2>Options</h2>
     <label for="difficultySelect">Difficulty:</label>
@@ -66,7 +66,7 @@
     <button id="optionsBackBtn">Back</button>
   </div>
   
-  <!-- Гараж -->
+  <!-- Garage Menu -->
   <div id="garageMenu" class="menu">
     <h2>Garage</h2>
     <p>Money: $<span id="moneyDisplay">100</span></p>
@@ -88,32 +88,32 @@
     <button id="garageStartBattle">Start Battle</button>
   </div>
   
-  <!-- Поле боя -->
+  <!-- Battle Canvas -->
   <canvas id="gameCanvas" width="800" height="600"></canvas>
   
   <script>
     /*********************
-     * Меню и переходы *
+     * MENU & NAVIGATION *
      *********************/
     var currentScreen = "mainMenu";
     var difficulty = "normal";
     
-    // Элементы меню
+    // Menu Elements
     var mainMenu = document.getElementById("mainMenu");
     var optionsMenu = document.getElementById("optionsMenu");
     var garageMenu = document.getElementById("garageMenu");
     var gameCanvas = document.getElementById("gameCanvas");
     var ctx = gameCanvas.getContext("2d");
     
-    // Кнопки главного меню
+    // Main Menu Buttons
     var startBtn = document.getElementById("startBtn");
     var optionsBtn = document.getElementById("optionsBtn");
     
-    // Элементы меню настроек
+    // Options Menu Elements
     var optionsBackBtn = document.getElementById("optionsBackBtn");
     var difficultySelect = document.getElementById("difficultySelect");
     
-    // Элементы гаража
+    // Garage Elements
     var moneyDisplay = document.getElementById("moneyDisplay");
     var shieldLevelDisplay = document.getElementById("shieldLevel");
     var shieldCostDisplay = document.getElementById("shieldCost");
@@ -129,7 +129,7 @@
     
     var garageStartBattleBtn = document.getElementById("garageStartBattle");
     
-    // Начальные состояния
+    // Initial display
     showMainMenu();
     
     startBtn.addEventListener("click", function(){
@@ -224,53 +224,58 @@
     }
     
     /*********************
-     * Игровые переменные *
+     * GAME VARIABLES *
      *********************/
-    // Статистика игрока; изначально деньги 100, базовое здоровье 100, базовые улучшения – 1 уровня
+    // Player stats
     var playerStats = {
       money: 100,
-      shield: 1,    // влияет на maxHP
-      weapons: 1,   // множитель урона
-      tracks: 1,    // (можно использовать для бонуса движения, здесь просто для отображения)
+      shield: 1,    // affects maxHP
+      weapons: 1,   // damage multiplier
+      tracks: 1,    // for mobility (display only)
       maxHP: 100,
       hp: 100,
-      angle: 45,    // угол выстрела (в градусах)
-      power: 50,    // сила выстрела
+      angle: 45,    // in degrees
+      power: 50,    // shooting power
       x: 0,
       y: 0
     };
     
-    // Статистика врага; HP зависит от сложности
-    var enemyStats = {
-      maxHP: 100,
-      hp: 100,
-      angle: 45,
-      power: 50,
-      x: 0,
-      y: 0
-    };
+    // Array of enemy tanks (each enemy object is similar to playerStats)
+    var enemies = [];
     
-    // Переменные для боя
+    // Current battle level – with each battle, the level increases and so does the number of opponents
+    var currentLevel = 1;
+    
+    // Battle parameters
     var terrain = [];
-    var playerTurn = true;       // чей ход: true – игрок, false – враг
-    var projectile = null;       // активный снаряд
+    var projectile = null;  // active projectile
     var gravity = 0.5;
-    var currentPhase = "aim";    // фазы: "aim" – настройка, "projectile" – полёт снаряда
+    var currentPhase = "aim";  // "aim" (aiming) or "projectile" (projectile in flight)
+    
+    // Turn order: elements can be "player" or a number (the index in the enemies array)
+    var turnOrder = [];
+    var currentTurnPointer = 0;  // index in turnOrder
+    // currentShooter is either "player" or an enemy index (number)
+    var currentShooter = "player";
     
     /*********************
-     * Генерация террейна *
+     * TERRAIN & TANK POSITIONING *
      *********************/
+    // Generate terrain with randomized parameters so each battle is different.
     function generateTerrain(){
       terrain = [];
       var step = 10;
+      // Random parameters:
+      var baseHeight = 350 + Math.random() * 100;    // between 350 and 450
+      var amplitude = 30 + Math.random() * 40;         // between 30 and 70
+      var frequency = 60 + Math.random() * 40;         // between 60 and 100
       for(var x = 0; x <= gameCanvas.width; x += step){
-        // Функция: базовая высота 400, небольшая синусоида и шум
-        var y = 400 + 50 * Math.sin(x / 80) + (Math.random() * 20 - 10);
+        var y = baseHeight + amplitude * Math.sin(x / frequency) + (Math.random() * 30 - 15);
         terrain.push({x: x, y: y});
       }
     }
     
-    // Получить высоту террейна в координате x (линейная интерполяция)
+    // Linear interpolation of terrain height at a given x
     function getTerrainHeight(x){
       var step = 10;
       var index = Math.floor(x / step);
@@ -282,31 +287,28 @@
       return p1.y * (1 - ratio) + p2.y * ratio;
     }
     
-    // Расположение танков на террейне
+    // Position tanks: player always on the left; enemies placed randomly in the right half.
     function positionTanks(){
-      // Игрок слева
+      // Player position
       playerStats.x = 80;
-      playerStats.y = getTerrainHeight(playerStats.x) - 10; // танк высотой 10 пикселей
-      // Враг справа
-      enemyStats.x = gameCanvas.width - 80;
-      enemyStats.y = getTerrainHeight(enemyStats.x) - 10;
+      playerStats.y = getTerrainHeight(playerStats.x) - 10;
       
-      // Обновляем HP
-      playerStats.hp = playerStats.maxHP;
-      if(difficulty === "easy"){
-        enemyStats.maxHP = 80;
-      } else if(difficulty === "normal"){
-        enemyStats.maxHP = 100;
-      } else { // hard
-        enemyStats.maxHP = 120;
+      // Position each enemy randomly in the right half.
+      for(var i = 0; i < enemies.length; i++){
+        var randX = Math.floor(Math.random() * ((gameCanvas.width - 80) - (gameCanvas.width/2))) + gameCanvas.width/2;
+        enemies[i].x = randX;
+        enemies[i].y = getTerrainHeight(randX) - 10;
+        // Reset enemy HP in case it was damaged in a previous battle.
+        enemies[i].hp = enemies[i].maxHP;
       }
-      enemyStats.hp = enemyStats.maxHP;
+      
+      // Reset player's HP.
+      playerStats.hp = playerStats.maxHP;
     }
     
     /*********************
-     * Рисование объектов *
+     * DRAWING FUNCTIONS *
      *********************/
-    // Рисуем террейн как замкнутую область
     function drawTerrain(){
       ctx.beginPath();
       ctx.moveTo(0, gameCanvas.height);
@@ -319,12 +321,12 @@
       ctx.fill();
     }
     
-    // Рисуем танк (прямоугольник + линия – башня)
+    // Draw a tank (rectangle + turret)
     function drawTank(tank, isPlayer){
       ctx.fillStyle = isPlayer ? "#00f" : "#f00";
-      ctx.fillRect(tank.x - 10, tank.y - 10, 20, 10); // тело танка
-      // Турель (линия, направление определяется углом)
-      var angleRad = (isPlayer ? playerStats.angle : enemyStats.angle) * Math.PI / 180;
+      ctx.fillRect(tank.x - 10, tank.y - 10, 20, 10);
+      var angle = isPlayer ? playerStats.angle : tank.angle;
+      var angleRad = angle * Math.PI / 180;
       ctx.strokeStyle = "#fff";
       ctx.beginPath();
       ctx.moveTo(tank.x, tank.y - 10);
@@ -332,25 +334,35 @@
       ctx.stroke();
     }
     
-    // Рисуем индикатор HP над танком
-    function drawHP(tank, x, y){
+    // Draw HP bar above the tank
+    function drawHP(tank, centerX, centerY){
       var hpPercent = tank.hp / tank.maxHP;
       ctx.fillStyle = "green";
-      ctx.fillRect(x, y, 40 * hpPercent, 5);
+      ctx.fillRect(centerX - 20, centerY - 30, 40 * hpPercent, 5);
       ctx.strokeStyle = "#fff";
-      ctx.strokeRect(x, y, 40, 5);
+      ctx.strokeRect(centerX - 20, centerY - 30, 40, 5);
     }
     
-    // Отрисовка информации о прицеливании (для игрока)
+    // Draw aiming info for the player
     function drawAimInfo(){
       ctx.font = "16px Arial";
       ctx.fillStyle = "#fff";
       ctx.fillText("Angle: " + playerStats.angle + "°", 10, 20);
       ctx.fillText("Power: " + playerStats.power, 10, 40);
       ctx.fillText("Your HP: " + playerStats.hp + "/" + playerStats.maxHP, 10, 60);
+      ctx.fillText("Level: " + currentLevel, 10, 80);
+      ctx.fillText("Turn: YOURS", 10, 100);
     }
     
-    // Рисуем снаряд
+    // Draw info during an enemy's turn
+    function drawEnemyTurnInfo(enemyIndex){
+      ctx.font = "16px Arial";
+      ctx.fillStyle = "#fff";
+      ctx.fillText("Enemy " + (enemyIndex + 1) + " Turn", 10, 20);
+      ctx.fillText("Enemy HP: " + enemies[enemyIndex].hp + "/" + enemies[enemyIndex].maxHP, 10, 40);
+      ctx.fillText("Level: " + currentLevel, 10, 60);
+    }
+    
     function drawProjectile(){
       if(projectile){
         ctx.beginPath();
@@ -361,11 +373,94 @@
     }
     
     /*********************
-     * Управление выстрелом *
+     * PROJECTILE & COLLISIONS *
      *********************/
-    // Обработчик клавиш – когда это ход игрока и фаза "aim"
+    // Fire a projectile; shooter can be "player" or an enemy index.
+    function fireProjectile(shooter){
+      currentPhase = "projectile";
+      var startX, startY, angleRad, power, dmgMult;
+      if(shooter === "player"){
+        startX = playerStats.x;
+        startY = playerStats.y - 10;
+        angleRad = playerStats.angle * Math.PI / 180;
+        power = playerStats.power / 2;
+        dmgMult = playerStats.weapons;
+      } else {
+        var enemy = enemies[shooter];
+        startX = enemy.x;
+        startY = enemy.y - 10;
+        angleRad = enemy.angle * Math.PI / 180;
+        power = enemy.power / 2;
+        dmgMult = 1;
+      }
+      projectile = {
+        x: startX,
+        y: startY,
+        vx: power * Math.cos(angleRad),
+        vy: -power * Math.sin(angleRad),
+        shooter: shooter,
+        damageMultiplier: dmgMult
+      };
+    }
+    
+    // Check collision using a circular approximation for the tank.
+    function checkTankCollision(tank) {
+      var centerX = tank.x;
+      var centerY = tank.y - 5;
+      var dx = projectile.x - centerX;
+      var dy = projectile.y - centerY;
+      return (Math.sqrt(dx * dx + dy * dy) < 15);
+    }
+    
+    // Update projectile movement and detect collisions.
+    function updateProjectile(){
+      if(!projectile) return;
+      projectile.vy += gravity;
+      projectile.x += projectile.vx;
+      projectile.y += projectile.vy;
+      
+      // If projectile leaves the screen, end the turn.
+      if(projectile.x < 0 || projectile.x > gameCanvas.width || projectile.y > gameCanvas.height){
+        projectile = null;
+        endTurn();
+        return;
+      }
+      
+      // Check collision with tanks.
+      if(projectile.shooter === "player"){
+        for(var i = 0; i < enemies.length; i++){
+          if(enemies[i].hp <= 0) continue;
+          if(checkTankCollision(enemies[i])){
+            enemies[i].hp -= 25 * projectile.damageMultiplier;
+            projectile = null;
+            endTurn();
+            return;
+          }
+        }
+      } else {
+        if(checkTankCollision(playerStats)){
+          playerStats.hp -= 25;
+          projectile = null;
+          endTurn();
+          return;
+        }
+      }
+      
+      // Check collision with terrain.
+      var groundY = getTerrainHeight(projectile.x);
+      if(projectile.y >= groundY){
+        projectile = null;
+        endTurn();
+        return;
+      }
+    }
+    
+    /*********************
+     * SHOOTING & TURN CONTROL *
+     *********************/
+    // Handle key presses for aiming/shooting – only for the player's turn.
     document.addEventListener("keydown", function(e){
-      if(currentScreen === "battle" && playerTurn && currentPhase === "aim"){
+      if(currentScreen === "battle" && currentShooter === "player" && currentPhase === "aim"){
         if(e.key === "ArrowUp"){
           playerStats.angle = Math.min(playerStats.angle + 1, 90);
         } else if(e.key === "ArrowDown"){
@@ -374,7 +469,7 @@
           playerStats.power = Math.min(playerStats.power + 1, 100);
         } else if(e.key === "ArrowLeft"){
           playerStats.power = Math.max(playerStats.power - 1, 10);
-        } else if(e.key === " "){ // пробел для выстрела
+        } else if(e.key === " "){
           if(currentPhase === "aim"){
             fireProjectile("player");
           }
@@ -382,142 +477,177 @@
       }
     });
     
-    // Запуск выстрела – создаём объект снаряда
-    function fireProjectile(shooter){
-      currentPhase = "projectile";
-      var startX, startY, angleRad, power, dmgMult;
-      if(shooter === "player"){
-        startX = playerStats.x;
-        startY = playerStats.y - 10;
-        angleRad = playerStats.angle * Math.PI / 180;
-        power = playerStats.power / 2; // масштабирование силы
-        dmgMult = playerStats.weapons;
-      } else {
-        startX = enemyStats.x;
-        startY = enemyStats.y - 10;
-        angleRad = enemyStats.angle * Math.PI / 180;
-        power = enemyStats.power / 2;
-        dmgMult = 1;
-      }
-      // Для врага будем умножать горизонтальную скорость на -1 (так как враг находится справа)
-      var vx = power * Math.cos(angleRad) * (shooter === "player" ? 1 : -1);
-      var vy = -power * Math.sin(angleRad);
-      projectile = {
-        x: startX,
-        y: startY,
-        vx: vx,
-        vy: vy,
-        shooter: shooter,
-        damageMultiplier: dmgMult
-      };
-    }
-    
-    // Обновление снаряда: учитываем гравитацию, перемещение и столкновения
-    function updateProjectile(){
-      if(!projectile) return;
-      projectile.vy += gravity;
-      projectile.x += projectile.vx;
-      projectile.y += projectile.vy;
-      
-      // Если снаряд вышел за границы экрана
-      if(projectile.x < 0 || projectile.x > gameCanvas.width || projectile.y > gameCanvas.height){
-        projectile = null;
-        endTurn();
-        return;
-      }
-      
-      // Проверка столкновения с террейном
-      var groundY = getTerrainHeight(projectile.x);
-      if(projectile.y >= groundY){
-        // Если снаряд попадает рядом с танком противника – наносим урон
-        if(projectile.shooter === "player"){
-          if(Math.abs(projectile.x - enemyStats.x) < 20 && Math.abs(projectile.y - enemyStats.y) < 20){
-            enemyStats.hp -= 25 * projectile.damageMultiplier;
-          }
-        } else {
-          if(Math.abs(projectile.x - playerStats.x) < 20 && Math.abs(projectile.y - playerStats.y) < 20){
-            playerStats.hp -= 25;
-          }
-        }
-        projectile = null;
-        endTurn();
-      }
-    }
-    
-    // По окончании хода переключаем активного стрелка
+    // When a projectile’s flight ends, move to the next turn.
     function endTurn(){
-      if(playerTurn){
-        playerTurn = false;
-        // После задержки запускаем ход врага
-        setTimeout(enemyFire, 1000);
-      } else {
-        playerTurn = true;
+      projectile = null;
+      nextTurn();
+      if(currentShooter !== "player"){
+        setTimeout(function(){
+          enemyFire(currentShooter);
+        }, 1000);
+      }
+    }
+    
+    // Advance to the next shooter in turn order (skipping dead enemies).
+    function nextTurn(){
+      var found = false;
+      for(var i = 0; i < turnOrder.length; i++){
+        currentTurnPointer = (currentTurnPointer + 1) % turnOrder.length;
+        var next = turnOrder[currentTurnPointer];
+        if(next === "player" || (typeof next === "number" && enemies[next].hp > 0)){
+          currentShooter = next;
+          found = true;
+          break;
+        }
+      }
+      if(!found){
+        currentShooter = "player";
+      }
+      if(currentShooter === "player"){
         currentPhase = "aim";
       }
     }
     
-    // Логика ИИ врага: простой алгоритм – попытаться поразить игрока
-    function enemyFire(){
-      // Определяем угол: ориентируемся на позицию игрока
-      var dx = playerStats.x - enemyStats.x;
-      var dy = enemyStats.y - playerStats.y;
-      // Примерное вычисление угла (с небольшим случайным разбросом)
-      enemyStats.angle = 180 - (Math.atan2(-dy, -dx) * 180 / Math.PI) + (Math.random() * 10 - 5);
-      // Сила выстрела зависит от расстояния (ограничим в диапазоне)
-      enemyStats.power = Math.min(Math.max(Math.abs(dx) / 2, 30), 70);
-      fireProjectile("enemy");
+    /********** NEW ENEMY AIMING FUNCTION **********/
+    // For an enemy on the right shooting left, we use the following approach:
+    // Let the enemy turret start at (X0, Y0) = (enemy.x, enemy.y - 10)
+    // and the target point be (X_target, Y_target) = (player.x, player.y - 10).
+    // Define D = X0 - X_target (which is positive).
+    // Choose an elevation angle α (in degrees) above the horizontal (we use 45°).
+    // Then the projectile equations (with our coordinate system) yield:
+    //    t = D / (v * cos(α))
+    //    Y_target = Y0 - v * sin(α)*t + 0.5 * g * t²
+    // Rearranging, we obtain a closed-form for v:
+    //    v² = (0.5 * g * D²) / (cos²(α) * (D*tan(α) - (Y0 - Y_target)))
+    // We then set enemy.angle = 180° – α (plus a small random variation)
+    // and enemy.power = 2 * v (since fireProjectile uses power/2 as the speed).
+    function enemyFire(enemyIndex){
+      var enemy = enemies[enemyIndex];
+      var X0 = enemy.x;
+      var Y0 = enemy.y - 10;
+      var X_target = playerStats.x;
+      var Y_target = playerStats.y - 10;
+      var D = X0 - X_target; // Must be positive
+      // Choose an elevation angle α (in degrees). For a shot from right to left, a typical value is 45°.
+      var alpha = 45;
+      var alphaRad = alpha * Math.PI / 180;
+      // Compute the denominator: D * tan(α) - (Y0 - Y_target)
+      var denom = D * Math.tan(alphaRad) - (Y0 - Y_target);
+      if(denom <= 0){
+        // Fallback if no valid solution.
+        enemy.angle = 135 + (Math.random()*4 - 2);
+        enemy.power = 50 + (Math.random()*10 - 5);
+        fireProjectile(enemyIndex);
+        return;
+      }
+      var vSquared = (0.5 * gravity * D * D) / (Math.pow(Math.cos(alphaRad), 2) * denom);
+      if(vSquared <= 0){
+        enemy.angle = 135 + (Math.random()*4 - 2);
+        enemy.power = 50 + (Math.random()*10 - 5);
+        fireProjectile(enemyIndex);
+        return;
+      }
+      var v = Math.sqrt(vSquared);
+      // Set enemy turret angle to 180° – α plus a small random variation.
+      enemy.angle = 180 - alpha + (Math.random()*4 - 2);
+      // Because fireProjectile uses (power/2) as the actual speed, set enemy.power = 2*v (with slight variation).
+      enemy.power = 2 * v * (1 + (Math.random()*0.1 - 0.05));
+      fireProjectile(enemyIndex);
     }
+    /********** END NEW ENEMY AIMING FUNCTION **********/
     
     /*********************
-     * Основной цикл боя *
+     * BATTLE LOOP *
      *********************/
     function battleLoop(){
       ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
       drawTerrain();
       
-      // Рисуем танки
+      // Draw player tank and its HP bar.
       drawTank(playerStats, true);
-      drawTank(enemyStats, false);
+      drawHP(playerStats, playerStats.x, playerStats.y);
       
-      // Рисуем индикаторы HP над танками
-      drawHP(playerStats, playerStats.x - 20, playerStats.y - 20);
-      drawHP(enemyStats, enemyStats.x - 20, enemyStats.y - 20);
+      // Draw each enemy tank (if still alive).
+      for(var i = 0; i < enemies.length; i++){
+        if(enemies[i].hp <= 0) continue;
+        drawTank(enemies[i], false);
+        drawHP(enemies[i], enemies[i].x, enemies[i].y);
+      }
       
-      drawAimInfo();
+      // Display turn information.
+      if(currentShooter === "player"){
+        drawAimInfo();
+      } else {
+        drawEnemyTurnInfo(currentShooter);
+      }
       
+      // Update and draw projectile if active.
       if(projectile){
         updateProjectile();
         drawProjectile();
       }
       
-      // Проверка победы/поражения
+      // Check win/lose conditions.
       if(playerStats.hp <= 0){
         ctx.font = "40px Arial";
         ctx.fillStyle = "#fff";
         ctx.fillText("You Lose!", gameCanvas.width/2 - 100, gameCanvas.height/2);
-        setTimeout(showGarageMenu, 3000);
+        setTimeout(function(){ showGarageMenu(); }, 3000);
         return;
       }
-      if(enemyStats.hp <= 0){
+      
+      var aliveEnemies = enemies.filter(function(enemy){ return enemy.hp > 0; });
+      if(aliveEnemies.length === 0){
         ctx.font = "40px Arial";
         ctx.fillStyle = "#fff";
         ctx.fillText("You Win!", gameCanvas.width/2 - 100, gameCanvas.height/2);
-        // Награда за победу (зависит от сложности)
         var reward = (difficulty === "easy") ? 50 : (difficulty === "hard") ? 150 : 100;
         playerStats.money += reward;
-        setTimeout(showGarageMenu, 3000);
+        setTimeout(function(){
+          currentLevel++;
+          showGarageMenu();
+        }, 3000);
         return;
       }
       
       requestAnimationFrame(battleLoop);
     }
     
-    // Запуск боя: генерируем террейн, позиционируем танки и начинаем цикл
+    // Start a battle: generate new terrain, create enemies, set turn order, and start the loop.
     function startBattle(){
       generateTerrain();
+      
+      // Determine the number of opponents (up to 3, increasing with level).
+      var numOpponents = Math.min(currentLevel, 3);
+      enemies = [];
+      for(var i = 0; i < numOpponents; i++){
+        var baseHP = (difficulty === "easy") ? 80 : (difficulty === "normal" ? 100 : 120);
+        var enemy = {
+          x: 0,
+          y: 0,
+          maxHP: baseHP + (currentLevel - 1) * 10,
+          hp: baseHP + (currentLevel - 1) * 10,
+          angle: 45,
+          power: 50
+        };
+        enemies.push(enemy);
+      }
+      
       positionTanks();
-      playerTurn = true;
-      currentPhase = "aim";
+      
+      // Set turn order: player first, then each enemy (by index).
+      turnOrder = ["player"];
+      for(var i = 0; i < enemies.length; i++){
+        turnOrder.push(i);
+      }
+      currentTurnPointer = 0;
+      currentShooter = turnOrder[currentTurnPointer];
+      if(currentShooter !== "player"){
+        setTimeout(function(){ enemyFire(currentShooter); }, 1000);
+      } else {
+        currentPhase = "aim";
+      }
+      
       projectile = null;
       battleLoop();
     }
