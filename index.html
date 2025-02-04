@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scorched Tanks</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #333;
+      color: #fff;
+      font-family: sans-serif;
+      text-align: center;
+    }
+    .menu {
+      display: none;
+      padding-top: 100px;
+    }
+    .visible {
+      display: block;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 10px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    select {
+      padding: 5px;
+      font-size: 16px;
+    }
+    /* Гараж – базовое оформление */
+    #garageMenu div {
+      border: 1px solid #fff;
+      padding: 10px;
+      margin: 10px auto;
+      width: 300px;
+    }
+    /* Канва для боя */
+    #gameCanvas {
+      background: #222;
+      border: 2px solid #fff;
+      display: none;
+      margin: 20px auto;
+    }
+  </style>
+</head>
+<body>
+  <!-- Главное меню -->
+  <div id="mainMenu" class="menu visible">
+    <h1>Scorched Tanks</h1>
+    <button id="startBtn">Start Game</button>
+    <button id="optionsBtn">Options</button>
+  </div>
+  
+  <!-- Меню настроек -->
+  <div id="optionsMenu" class="menu">
+    <h2>Options</h2>
+    <label for="difficultySelect">Difficulty:</label>
+    <select id="difficultySelect">
+      <option value="easy">Easy</option>
+      <option value="normal" selected>Normal</option>
+      <option value="hard">Hard</option>
+    </select>
+    <br>
+    <button id="optionsBackBtn">Back</button>
+  </div>
+  
+  <!-- Гараж -->
+  <div id="garageMenu" class="menu">
+    <h2>Garage</h2>
+    <p>Money: $<span id="moneyDisplay">100</span></p>
+    <div>
+      <h3>Shield Upgrade (Tank HP)</h3>
+      <p>Level: <span id="shieldLevel">1</span> &nbsp;&nbsp; Cost: $<span id="shieldCost">50</span></p>
+      <button id="buyShield">Buy Upgrade</button>
+    </div>
+    <div>
+      <h3>Weapons Upgrade (Damage)</h3>
+      <p>Level: <span id="weaponsLevel">1</span> &nbsp;&nbsp; Cost: $<span id="weaponsCost">50</span></p>
+      <button id="buyWeapons">Buy Upgrade</button>
+    </div>
+    <div>
+      <h3>Tracks Upgrade (Mobility)</h3>
+      <p>Level: <span id="tracksLevel">1</span> &nbsp;&nbsp; Cost: $<span id="tracksCost">50</span></p>
+      <button id="buyTracks">Buy Upgrade</button>
+    </div>
+    <button id="garageStartBattle">Start Battle</button>
+  </div>
+  
+  <!-- Поле боя -->
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  
+  <script>
+    /*********************
+     * Меню и переходы *
+     *********************/
+    var currentScreen = "mainMenu";
+    var difficulty = "normal";
+    
+    // Элементы меню
+    var mainMenu = document.getElementById("mainMenu");
+    var optionsMenu = document.getElementById("optionsMenu");
+    var garageMenu = document.getElementById("garageMenu");
+    var gameCanvas = document.getElementById("gameCanvas");
+    var ctx = gameCanvas.getContext("2d");
+    
+    // Кнопки главного меню
+    var startBtn = document.getElementById("startBtn");
+    var optionsBtn = document.getElementById("optionsBtn");
+    
+    // Элементы меню настроек
+    var optionsBackBtn = document.getElementById("optionsBackBtn");
+    var difficultySelect = document.getElementById("difficultySelect");
+    
+    // Элементы гаража
+    var moneyDisplay = document.getElementById("moneyDisplay");
+    var shieldLevelDisplay = document.getElementById("shieldLevel");
+    var shieldCostDisplay = document.getElementById("shieldCost");
+    var buyShieldBtn = document.getElementById("buyShield");
+    
+    var weaponsLevelDisplay = document.getElementById("weaponsLevel");
+    var weaponsCostDisplay = document.getElementById("weaponsCost");
+    var buyWeaponsBtn = document.getElementById("buyWeapons");
+    
+    var tracksLevelDisplay = document.getElementById("tracksLevel");
+    var tracksCostDisplay = document.getElementById("tracksCost");
+    var buyTracksBtn = document.getElementById("buyTracks");
+    
+    var garageStartBattleBtn = document.getElementById("garageStartBattle");
+    
+    // Начальные состояния
+    showMainMenu();
+    
+    startBtn.addEventListener("click", function(){
+      showGarageMenu();
+    });
+    optionsBtn.addEventListener("click", function(){
+      showOptionsMenu();
+    });
+    optionsBackBtn.addEventListener("click", function(){
+      showMainMenu();
+    });
+    
+    difficultySelect.addEventListener("change", function(){
+      difficulty = this.value;
+    });
+    
+    buyShieldBtn.addEventListener("click", function(){
+      var cost = parseInt(shieldCostDisplay.textContent);
+      if(playerStats.money >= cost){
+        playerStats.money -= cost;
+        playerStats.shield++;
+        playerStats.maxHP = 100 * playerStats.shield;
+        playerStats.hp = playerStats.maxHP;
+        shieldCostDisplay.textContent = cost * 2;
+        shieldLevelDisplay.textContent = playerStats.shield;
+        updateMoneyDisplay();
+      }
+    });
+    
+    buyWeaponsBtn.addEventListener("click", function(){
+      var cost = parseInt(weaponsCostDisplay.textContent);
+      if(playerStats.money >= cost){
+        playerStats.money -= cost;
+        playerStats.weapons++;
+        weaponsCostDisplay.textContent = cost * 2;
+        weaponsLevelDisplay.textContent = playerStats.weapons;
+        updateMoneyDisplay();
+      }
+    });
+    
+    buyTracksBtn.addEventListener("click", function(){
+      var cost = parseInt(tracksCostDisplay.textContent);
+      if(playerStats.money >= cost){
+        playerStats.money -= cost;
+        playerStats.tracks++;
+        tracksCostDisplay.textContent = cost * 2;
+        tracksLevelDisplay.textContent = playerStats.tracks;
+        updateMoneyDisplay();
+      }
+    });
+    
+    garageStartBattleBtn.addEventListener("click", function(){
+      showBattleScreen();
+      startBattle();
+    });
+    
+    function updateMoneyDisplay(){
+      moneyDisplay.textContent = playerStats.money;
+    }
+    
+    function showMainMenu(){
+      currentScreen = "mainMenu";
+      mainMenu.style.display = "block";
+      optionsMenu.style.display = "none";
+      garageMenu.style.display = "none";
+      gameCanvas.style.display = "none";
+    }
+    
+    function showOptionsMenu(){
+      currentScreen = "optionsMenu";
+      mainMenu.style.display = "none";
+      optionsMenu.style.display = "block";
+      garageMenu.style.display = "none";
+      gameCanvas.style.display = "none";
+    }
+    
+    function showGarageMenu(){
+      currentScreen = "garageMenu";
+      mainMenu.style.display = "none";
+      optionsMenu.style.display = "none";
+      garageMenu.style.display = "block";
+      gameCanvas.style.display = "none";
+      updateMoneyDisplay();
+    }
+    
+    function showBattleScreen(){
+      currentScreen = "battle";
+      mainMenu.style.display = "none";
+      optionsMenu.style.display = "none";
+      garageMenu.style.display = "none";
+      gameCanvas.style.display = "block";
+    }
+    
+    /*********************
+     * Игровые переменные *
+     *********************/
+    // Статистика игрока; изначально деньги 100, базовое здоровье 100, базовые улучшения – 1 уровня
+    var playerStats = {
+      money: 100,
+      shield: 1,    // влияет на maxHP
+      weapons: 1,   // множитель урона
+      tracks: 1,    // (можно использовать для бонуса движения, здесь просто для отображения)
+      maxHP: 100,
+      hp: 100,
+      angle: 45,    // угол выстрела (в градусах)
+      power: 50,    // сила выстрела
+      x: 0,
+      y: 0
+    };
+    
+    // Статистика врага; HP зависит от сложности
+    var enemyStats = {
+      maxHP: 100,
+      hp: 100,
+      angle: 45,
+      power: 50,
+      x: 0,
+      y: 0
+    };
+    
+    // Переменные для боя
+    var terrain = [];
+    var playerTurn = true;       // чей ход: true – игрок, false – враг
+    var projectile = null;       // активный снаряд
+    var gravity = 0.5;
+    var currentPhase = "aim";    // фазы: "aim" – настройка, "projectile" – полёт снаряда
+    
+    /*********************
+     * Генерация террейна *
+     *********************/
+    function generateTerrain(){
+      terrain = [];
+      var step = 10;
+      for(var x = 0; x <= gameCanvas.width; x += step){
+        // Функция: базовая высота 400, небольшая синусоида и шум
+        var y = 400 + 50 * Math.sin(x / 80) + (Math.random() * 20 - 10);
+        terrain.push({x: x, y: y});
+      }
+    }
+    
+    // Получить высоту террейна в координате x (линейная интерполяция)
+    function getTerrainHeight(x){
+      var step = 10;
+      var index = Math.floor(x / step);
+      if(index < 0) index = 0;
+      if(index >= terrain.length - 1) index = terrain.length - 2;
+      var p1 = terrain[index];
+      var p2 = terrain[index + 1];
+      var ratio = (x - p1.x) / (p2.x - p1.x);
+      return p1.y * (1 - ratio) + p2.y * ratio;
+    }
+    
+    // Расположение танков на террейне
+    function positionTanks(){
+      // Игрок слева
+      playerStats.x = 80;
+      playerStats.y = getTerrainHeight(playerStats.x) - 10; // танк высотой 10 пикселей
+      // Враг справа
+      enemyStats.x = gameCanvas.width - 80;
+      enemyStats.y = getTerrainHeight(enemyStats.x) - 10;
+      
+      // Обновляем HP
+      playerStats.hp = playerStats.maxHP;
+      if(difficulty === "easy"){
+        enemyStats.maxHP = 80;
+      } else if(difficulty === "normal"){
+        enemyStats.maxHP = 100;
+      } else { // hard
+        enemyStats.maxHP = 120;
+      }
+      enemyStats.hp = enemyStats.maxHP;
+    }
+    
+    /*********************
+     * Рисование объектов *
+     *********************/
+    // Рисуем террейн как замкнутую область
+    function drawTerrain(){
+      ctx.beginPath();
+      ctx.moveTo(0, gameCanvas.height);
+      for(var i = 0; i < terrain.length; i++){
+        ctx.lineTo(terrain[i].x, terrain[i].y);
+      }
+      ctx.lineTo(gameCanvas.width, gameCanvas.height);
+      ctx.closePath();
+      ctx.fillStyle = "#654321";
+      ctx.fill();
+    }
+    
+    // Рисуем танк (прямоугольник + линия – башня)
+    function drawTank(tank, isPlayer){
+      ctx.fillStyle = isPlayer ? "#00f" : "#f00";
+      ctx.fillRect(tank.x - 10, tank.y - 10, 20, 10); // тело танка
+      // Турель (линия, направление определяется углом)
+      var angleRad = (isPlayer ? playerStats.angle : enemyStats.angle) * Math.PI / 180;
+      ctx.strokeStyle = "#fff";
+      ctx.beginPath();
+      ctx.moveTo(tank.x, tank.y - 10);
+      ctx.lineTo(tank.x + 20 * Math.cos(angleRad), tank.y - 10 - 20 * Math.sin(angleRad));
+      ctx.stroke();
+    }
+    
+    // Рисуем индикатор HP над танком
+    function drawHP(tank, x, y){
+      var hpPercent = tank.hp / tank.maxHP;
+      ctx.fillStyle = "green";
+      ctx.fillRect(x, y, 40 * hpPercent, 5);
+      ctx.strokeStyle = "#fff";
+      ctx.strokeRect(x, y, 40, 5);
+    }
+    
+    // Отрисовка информации о прицеливании (для игрока)
+    function drawAimInfo(){
+      ctx.font = "16px Arial";
+      ctx.fillStyle = "#fff";
+      ctx.fillText("Angle: " + playerStats.angle + "°", 10, 20);
+      ctx.fillText("Power: " + playerStats.power, 10, 40);
+      ctx.fillText("Your HP: " + playerStats.hp + "/" + playerStats.maxHP, 10, 60);
+    }
+    
+    // Рисуем снаряд
+    function drawProjectile(){
+      if(projectile){
+        ctx.beginPath();
+        ctx.arc(projectile.x, projectile.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#ff0";
+        ctx.fill();
+      }
+    }
+    
+    /*********************
+     * Управление выстрелом *
+     *********************/
+    // Обработчик клавиш – когда это ход игрока и фаза "aim"
+    document.addEventListener("keydown", function(e){
+      if(currentScreen === "battle" && playerTurn && currentPhase === "aim"){
+        if(e.key === "ArrowUp"){
+          playerStats.angle = Math.min(playerStats.angle + 1, 90);
+        } else if(e.key === "ArrowDown"){
+          playerStats.angle = Math.max(playerStats.angle - 1, 0);
+        } else if(e.key === "ArrowRight"){
+          playerStats.power = Math.min(playerStats.power + 1, 100);
+        } else if(e.key === "ArrowLeft"){
+          playerStats.power = Math.max(playerStats.power - 1, 10);
+        } else if(e.key === " "){ // пробел для выстрела
+          if(currentPhase === "aim"){
+            fireProjectile("player");
+          }
+        }
+      }
+    });
+    
+    // Запуск выстрела – создаём объект снаряда
+    function fireProjectile(shooter){
+      currentPhase = "projectile";
+      var startX, startY, angleRad, power, dmgMult;
+      if(shooter === "player"){
+        startX = playerStats.x;
+        startY = playerStats.y - 10;
+        angleRad = playerStats.angle * Math.PI / 180;
+        power = playerStats.power / 2; // масштабирование силы
+        dmgMult = playerStats.weapons;
+      } else {
+        startX = enemyStats.x;
+        startY = enemyStats.y - 10;
+        angleRad = enemyStats.angle * Math.PI / 180;
+        power = enemyStats.power / 2;
+        dmgMult = 1;
+      }
+      // Для врага будем умножать горизонтальную скорость на -1 (так как враг находится справа)
+      var vx = power * Math.cos(angleRad) * (shooter === "player" ? 1 : -1);
+      var vy = -power * Math.sin(angleRad);
+      projectile = {
+        x: startX,
+        y: startY,
+        vx: vx,
+        vy: vy,
+        shooter: shooter,
+        damageMultiplier: dmgMult
+      };
+    }
+    
+    // Обновление снаряда: учитываем гравитацию, перемещение и столкновения
+    function updateProjectile(){
+      if(!projectile) return;
+      projectile.vy += gravity;
+      projectile.x += projectile.vx;
+      projectile.y += projectile.vy;
+      
+      // Если снаряд вышел за границы экрана
+      if(projectile.x < 0 || projectile.x > gameCanvas.width || projectile.y > gameCanvas.height){
+        projectile = null;
+        endTurn();
+        return;
+      }
+      
+      // Проверка столкновения с террейном
+      var groundY = getTerrainHeight(projectile.x);
+      if(projectile.y >= groundY){
+        // Если снаряд попадает рядом с танком противника – наносим урон
+        if(projectile.shooter === "player"){
+          if(Math.abs(projectile.x - enemyStats.x) < 20 && Math.abs(projectile.y - enemyStats.y) < 20){
+            enemyStats.hp -= 25 * projectile.damageMultiplier;
+          }
+        } else {
+          if(Math.abs(projectile.x - playerStats.x) < 20 && Math.abs(projectile.y - playerStats.y) < 20){
+            playerStats.hp -= 25;
+          }
+        }
+        projectile = null;
+        endTurn();
+      }
+    }
+    
+    // По окончании хода переключаем активного стрелка
+    function endTurn(){
+      if(playerTurn){
+        playerTurn = false;
+        // После задержки запускаем ход врага
+        setTimeout(enemyFire, 1000);
+      } else {
+        playerTurn = true;
+        currentPhase = "aim";
+      }
+    }
+    
+    // Логика ИИ врага: простой алгоритм – попытаться поразить игрока
+    function enemyFire(){
+      // Определяем угол: ориентируемся на позицию игрока
+      var dx = playerStats.x - enemyStats.x;
+      var dy = enemyStats.y - playerStats.y;
+      // Примерное вычисление угла (с небольшим случайным разбросом)
+      enemyStats.angle = 180 - (Math.atan2(-dy, -dx) * 180 / Math.PI) + (Math.random() * 10 - 5);
+      // Сила выстрела зависит от расстояния (ограничим в диапазоне)
+      enemyStats.power = Math.min(Math.max(Math.abs(dx) / 2, 30), 70);
+      fireProjectile("enemy");
+    }
+    
+    /*********************
+     * Основной цикл боя *
+     *********************/
+    function battleLoop(){
+      ctx.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
+      drawTerrain();
+      
+      // Рисуем танки
+      drawTank(playerStats, true);
+      drawTank(enemyStats, false);
+      
+      // Рисуем индикаторы HP над танками
+      drawHP(playerStats, playerStats.x - 20, playerStats.y - 20);
+      drawHP(enemyStats, enemyStats.x - 20, enemyStats.y - 20);
+      
+      drawAimInfo();
+      
+      if(projectile){
+        updateProjectile();
+        drawProjectile();
+      }
+      
+      // Проверка победы/поражения
+      if(playerStats.hp <= 0){
+        ctx.font = "40px Arial";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("You Lose!", gameCanvas.width/2 - 100, gameCanvas.height/2);
+        setTimeout(showGarageMenu, 3000);
+        return;
+      }
+      if(enemyStats.hp <= 0){
+        ctx.font = "40px Arial";
+        ctx.fillStyle = "#fff";
+        ctx.fillText("You Win!", gameCanvas.width/2 - 100, gameCanvas.height/2);
+        // Награда за победу (зависит от сложности)
+        var reward = (difficulty === "easy") ? 50 : (difficulty === "hard") ? 150 : 100;
+        playerStats.money += reward;
+        setTimeout(showGarageMenu, 3000);
+        return;
+      }
+      
+      requestAnimationFrame(battleLoop);
+    }
+    
+    // Запуск боя: генерируем террейн, позиционируем танки и начинаем цикл
+    function startBattle(){
+      generateTerrain();
+      positionTanks();
+      playerTurn = true;
+      currentPhase = "aim";
+      projectile = null;
+      battleLoop();
+    }
+    
+  </script>
+</body>
+</html>
